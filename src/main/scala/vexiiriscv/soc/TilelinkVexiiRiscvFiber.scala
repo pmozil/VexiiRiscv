@@ -17,6 +17,7 @@ import spinal.lib.sim.SparseMemory
 import spinal.lib.system.tag.{MemoryConnection, PMA, PmaRegion}
 import spinal.sim.{Signal, SimManagerContext}
 import vexiiriscv.{ParamSimple, VexiiRiscv}
+import vexiiriscv.execute.cfu.{CfuBus, CfuBusParameter, CfuPlugin, CfuPluginEncoding}
 import vexiiriscv.execute.lsu.{LsuCachelessPlugin, LsuCachelessTileLinkPlugin, LsuL1Plugin, LsuL1TileLinkPlugin, LsuPlugin, LsuTileLinkPlugin}
 import vexiiriscv.fetch.{FetchCachelessPlugin, FetchCachelessTileLinkPlugin, FetchL1TileLinkPlugin, FetchL1Plugin}
 import vexiiriscv.memory.AddressTranslationService
@@ -35,6 +36,25 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
   val iBus = Node.down()
   val dBus = Node.down()
   val lsuL1Bus = plugins.exists(_.isInstanceOf[LsuL1Plugin]) generate Node.down()
+  val cfuBus = plugins.exists(_.isInstanceOf[CfuPlugin]) generate new Area {
+    val cfuPlugin = plugins.find(_.isInstanceOf[CfuPlugin]).get.asInstanceOf[CfuPlugin]
+    val cfuBusParam = cfuPlugin.busParameter
+    val node = CfuBus(cfuBusParam)
+
+    val cmd_valid = out(node.cmd.valid)
+    val cmd_ready = in(node.cmd.ready)
+    val cmd_payload_function_id = out(node.cmd.function_id)
+    val cmd_payload_inputs_0 = out(node.cmd.inputs(0))
+    val cmd_payload_inputs_1 = out(node.cmd.inputs(1))
+    val cmd_payload_state_index = out(node.cmd.state_index)
+    val cmd_payload_cfu_index = out(node.cmd.cfu_index)
+    val cmd_payload_raw_insn = out(node.cmd.raw_insn)
+
+    val rsp_valid = in(node.rsp.valid)
+    val rsp_ready = out(node.rsp.ready)
+    val rsp_payload_outputs_0 = in(node.rsp.outputs(0))
+    val rsp_payload_status = in(node.rsp.status)
+  }
 
   def buses = List(iBus, dBus) ++ lsuL1Bus.nullOption
 
@@ -137,6 +157,9 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
           hart.m.imsic.triggers := priv.get.mmsi
           if (p.p.withSupervisor) hart.s.imsic.triggers := priv.get.smsi
         }
+      }
+      case p: vexiiriscv.execute.cfu.CfuPlugin => {
+        cfuBus.node << p.logic.bus
       }
       case _ =>
     }

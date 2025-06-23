@@ -34,6 +34,7 @@ import spinal.lib.system.tag.{MemoryConnection, MemoryEndpoint, MemoryEndpointTa
 import vexiiriscv.{Global, ParamSimple}
 import vexiiriscv.compat.{EnforceSyncRamPhase, MultiPortWritesSymplifier}
 import vexiiriscv.execute.ExecuteLanePlugin
+import vexiiriscv.execute.cfu.{CfuBus, CfuBusParameter, CfuPlugin, CfuPluginEncoding}
 import vexiiriscv.execute.lsu.LsuL1Plugin
 import vexiiriscv.fetch.{Fetch, FetchL1Plugin, FetchPipelinePlugin, PcPlugin}
 import vexiiriscv.misc.{PrivilegedPlugin, TrapPlugin}
@@ -186,6 +187,9 @@ class Soc(c : SocConfig) extends Component {
     val withCoherency = vexiiParam.lsuL1Coherency
     val withSupervisor = vexiiParam.privParam.withSupervisor
     val vexiis = for (hartId <- 0 until cpuCount) yield new TilelinkVexiiRiscvFiber(vexiiParam.plugins(hartId))
+
+    // Create CFU buses for each core that has CFU enabled
+
     for (vexii <- vexiis) {
       if (vexiiParam.fetchL1Enable) vexii.iBus.setDownConnection { (down, up) =>
         down.a << up.a.halfPipe().halfPipe()

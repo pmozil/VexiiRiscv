@@ -46,9 +46,6 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
     val cmd_payload_function_id = out(node.cmd.function_id)
     val cmd_payload_inputs_0 = out(node.cmd.inputs(0))
     val cmd_payload_inputs_1 = out(node.cmd.inputs(1))
-    val cmd_payload_state_index = out(node.cmd.state_index)
-    val cmd_payload_cfu_index = out(node.cmd.cfu_index)
-    val cmd_payload_raw_insn = out(node.cmd.raw_insn)
 
     val rsp_valid = in(node.rsp.valid)
     val rsp_ready = out(node.rsp.ready)

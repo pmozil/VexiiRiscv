@@ -940,7 +940,7 @@ class ParamSimple() {
         CFU_OUTPUT_DATA_W = xlen,
         CFU_FLOW_REQ_READY_ALWAYS = false,
         CFU_FLOW_RESP_READY_ALWAYS = false,
-        CFU_WITH_STATUS = true,
+        CFU_WITH_STATUS = false,
         CFU_RAW_INSN_W = 32,
         CFU_CFU_ID_W = 4,
         CFU_STATE_INDEX_NUM = 5

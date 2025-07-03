@@ -50,7 +50,6 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
     val rsp_valid = in(node.rsp.valid)
     val rsp_ready = out(node.rsp.ready)
     val rsp_payload_outputs_0 = in(node.rsp.outputs(0))
-    val rsp_payload_status = in(node.rsp.status)
   }
 
   def buses = List(iBus, dBus) ++ lsuL1Bus.nullOption

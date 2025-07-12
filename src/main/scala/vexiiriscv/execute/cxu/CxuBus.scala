@@ -83,7 +83,7 @@ case class CxuBus(p: CxuBusParameter) extends Bundle with IMasterSlave {
   }
 }
 
-case class CxuMux(p: CxuBusParameter, select: UInt) extends Bundle with IMasterSlave {
+case class CxuMux(p: CxuBusParameter) extends Bundle with IMasterSlave {
   val cmd = Stream(CxuCmd(p))
   val rsp = Stream(CxuRsp(p))
 
@@ -94,9 +94,10 @@ case class CxuMux(p: CxuBusParameter, select: UInt) extends Bundle with IMasterS
 
   val totalCxuCount = p.CXU_L0_COUNT + p.CXU_L1_COUNT + p.CXU_L2_COUNT + p.CXU_L3_COUNT
   val buses = Vec(CxuBus(p), totalCxuCount)
+  val selected = Reg(UInt(log2Up(totalCxuCount) bits)) init(0)
 
   for ((bus, i) <- buses.zipWithIndex) {
-    val isSelected = select === U(i, select.getWidth bits)
+    val isSelected = selected === U(i, selected.getWidth bits)
 
     bus.cmd.valid := cmd.valid && isSelected
     bus.cmd.payload := cmd.payload

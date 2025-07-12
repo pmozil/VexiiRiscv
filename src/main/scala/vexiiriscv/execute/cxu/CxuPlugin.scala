@@ -25,7 +25,7 @@ case class CxuPluginParameter(
                                CXU_FLOW_REQ_READY_ALWAYS : Boolean,
                                CXU_FLOW_RESP_READY_ALWAYS : Boolean,
                                CXU_WITH_STATUS: Boolean = false,
-                               CXU_CXU_ID_W: Int = 0,
+                               CXU_CXU_ID_W: Int = 8,
                                CXU_STATE_INDEX_NUM: Int = 1)
 
 object CxuPlugin{
@@ -68,7 +68,13 @@ class CxuPlugin(val layer : LaneLayer,
     val mcx_cxe = Reg(Bool()) init(False)
     val mcx_state_id = Reg(UInt(log2Up(p.CXU_STATE_INDEX_NUM) bits)) init(0)
     val mcx_selector = Reg(UInt(p.CXU_CXU_ID_W bits)) init(0)
-    val bus = CxuMux(p, mcx_selector)
+
+    when (mcx_version =/= 1) {
+      mcx_selector := 0
+    }
+
+    val bus = CxuMux(p)
+    bus.selected := mcx_selector
 
     val CXU_ENABLE = Payload(Bool())
     val CXU_IN_FLIGHT = Payload(Bool())

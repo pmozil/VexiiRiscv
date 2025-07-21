@@ -56,7 +56,7 @@ class CxuPlugin(val layer : LaneLayer,
   assert(p.CXU_INPUTS <= 2)
   assert(p.CXU_OUTPUTS == 1)
 
-  val logic = during setup new Area{
+  val logic = during setup new Area {
     val wbp = host.find[WriteBackPlugin](p => p.rf == IntRegFile && p.lane == layer.lane)
     val cp = host[CsrService]
     val ds = host[DecoderService]
@@ -66,20 +66,20 @@ class CxuPlugin(val layer : LaneLayer,
 
     val mcx_version = Reg(UInt(3 bits)) init(1)
     val mcx_cxe = Reg(Bool()) init(False)
-    val mcx_state_id = Reg(UInt(log2Up(p.CXU_STATE_INDEX_NUM) bits)) init(0)
-    val mcx_selector = Reg(UInt(p.CXU_CXU_ID_W bits)) init(0)
+    val mcx_state_id = Reg(UInt(log2Up(busParameter.CXU_STATE_INDEX_NUM) bits)) init(0)
+    val mcx_selector = Reg(UInt(busParameter.CXU_CXU_ID_W bits)) init(0)
 
-    when (mcx_version =/= 1) {
+    when(mcx_version =/= 1) {
       mcx_selector := 0
     }
 
-    val bus = CxuMux(p)
+    val bus = CxuMux(busParameter)
     bus.selected := mcx_selector
 
     val CXU_ENABLE = Payload(Bool())
     val CXU_IN_FLIGHT = Payload(Bool())
     val CXU_ENCODING = Payload(UInt(log2Up(encodings.size) bits))
-    val CXU_INPUT_2_KIND = Payload(CxuPlugin.Input2Kind())
+    val CXU_INPUT_2_KIND = Payload(Input2Kind())
 
     val wb = wbp.createPort(at = joinAt)
 
@@ -87,12 +87,13 @@ class CxuPlugin(val layer : LaneLayer,
     if(withEnable) ds.addMicroOpDecodingDefault(CXU_ENABLE, False)
 
     val en = withEnable generate (Reg(Bool()) init(enableInit))
-    val mappings = for((encoding, id) <- encodings.zipWithIndex) yield new Area{
+
+    val mappings = for((encoding, id) <- encodings.zipWithIndex) yield new Area {
       val ressources = ArrayBuffer[Resource]()
       ressources += IntRegFile -> RD
       ressources += IntRegFile -> RS1
       encoding.input2Kind match {
-        case CxuPlugin.Input2Kind.RS => ressources += IntRegFile -> RS2
+        case Input2Kind.RS => ressources += IntRegFile -> RS2
         case _ =>
       }
       val uopType = SingleDecoding(
@@ -103,7 +104,7 @@ class CxuPlugin(val layer : LaneLayer,
       val uop = layer.add(uopType)
       uop.addRsSpec(RS1, executeAt = 0)
       encoding.input2Kind match {
-        case CxuPlugin.Input2Kind.RS => uop.addRsSpec(RS2, executeAt = 0)
+        case Input2Kind.RS => uop.addRsSpec(RS2, executeAt = 0)
         case _ =>
       }
       uop.setCompletion(joinAt)
@@ -122,7 +123,7 @@ class CxuPlugin(val layer : LaneLayer,
 
     earlyLock.release()
 
-    val csr = new Area{
+    val csr = new Area {
       cp.flushOnWrite(stateAndIndexCsrOffset)
       if(withEnable) cp.readWrite(stateAndIndexCsrOffset, 31 -> en)
 
@@ -131,10 +132,10 @@ class CxuPlugin(val layer : LaneLayer,
       cp.readWrite(stateAndIndexCsrOffset, 16 -> mcx_state_id)
       cp.readWrite(stateAndIndexCsrOffset, 0 -> mcx_selector)
 
-      val status = p.CXU_WITH_STATUS generate new Area{
-        val CU, OP, FI, OF, SI, CI = RegInit(False)
-        val flags = List(CU, OP, FI, OF, SI, CI).reverse
-        cp.readWrite(statusCsrOffset,  flags.zipWithIndex.map(_.swap) :_*)
+      val status = busParameter.CXU_WITH_STATUS generate new Area {
+        val IV, IC, IS, OF, IF, OP, CU = RegInit(False)
+        val flags = List(CU, OP, IF, OF, IS, IC, IV).reverse
+        cp.readWrite(statusCsrOffset, flags.zipWithIndex.map(_.swap):_*)
         cp.flushOnWrite(statusCsrOffset)
       }
     }
@@ -147,27 +148,54 @@ class CxuPlugin(val layer : LaneLayer,
       CXU_IN_FLIGHT := schedule || hold || fired
 
       bus.cmd.valid := (schedule || hold) && !fired
+      bus.cmd.cxu_id := mcx_selector
+      bus.cmd.state_id := mcx_state_id
 
       val freezeIt = bus.cmd.valid && !bus.cmd.ready
       layer.lane.freezeWhen(freezeIt)
 
       val functionIdFromInstructinoWidth = encodings.map(_.functionIdWidth).max
       val functionsIds = encodings.map(e => U(Cat(e.functionId.map(r => Decode.UOP(r))), functionIdFromInstructinoWidth bits))
-      bus.cmd.cxu_id := mcx_selector
-      bus.cmd.state_id := mcx_state_id
       bus.cmd.function_id := functionsIds.read(CXU_ENCODING)
       bus.cmd.reorder_id := 0
       bus.cmd.request_id := 0
-      bus.cmd.raw_insn   := Decode.UOP.resized
-      if(p.CXU_INPUTS >= 1) bus.cmd.inputs(0) := up(layer.lane(IntRegFile, RS1))
-      if(p.CXU_INPUTS >= 2)  bus.cmd.inputs(1) := CXU_INPUT_2_KIND.mux[Bits](
-        CxuPlugin.Input2Kind.RS -> up(layer.lane(IntRegFile, RS2)),
-        CxuPlugin.Input2Kind.IMM_I -> IMM(Decode.UOP).h_sext.asBits
+      bus.cmd.raw_insn := Decode.UOP.resized
+      if(busParameter.CXU_INPUTS >= 1) bus.cmd.inputs(0) := up(layer.lane(IntRegFile, RS1))
+      if(busParameter.CXU_INPUTS >= 2) bus.cmd.inputs(1) := CXU_INPUT_2_KIND.mux[Bits](
+        Input2Kind.RS -> up(layer.lane(IntRegFile, RS2)),
+        Input2Kind.IMM_I -> IMM(Decode.UOP).h_sext.asBits
       )
+
+      val canAccept = if(busParameter.CXU_FEATURE_LEVEL >= 2) {
+        bus.cmd.payload.ready && !freezeIt
+      } else {
+        True
+      }
+      bus.cmd.ready := canAccept
+
+      val pendingRequests = busParameter.CXU_FEATURE_LEVEL >= 2 generate new Area {
+        val count = Reg(UInt(log2Up(busParameter.CXU_MAX_PENDING_REQUESTS+1) bits)) init(0)
+        val full = count === busParameter.CXU_MAX_PENDING_REQUESTS
+
+        when(bus.cmd.fire && !bus.rsp.fire) { count := count + 1 }
+        when(!bus.cmd.fire && bus.rsp.fire) { count := count - 1 }
+
+        bus.cmd.payload.ready := !full
+      }
     }
 
     val onJoin = new layer.Execute(joinAt) {
+      // val busRspStream = if(busParameter.CXU_FEATURE_LEVEL >= 2) {
+      //   bus.rsp.translateWith {
+      //     val r = bus.rsp.payload
+      //     r.ready := !freezeIt
+      //     r
+      //   }.toFlow.toStream
+      // } else {
+      //   bus.rsp.toFlow.toStream
+      // }
       val busRspStream = bus.rsp.toFlow.toStream
+
       val rsp = busRspStream.queueLowLatency(
         size = joinAt-forkAt+1,
         latency = 0
@@ -180,10 +208,9 @@ class CxuPlugin(val layer : LaneLayer,
       wb.valid := isValid && CXU_ENABLE
       wb.payload := rsp.outputs(0)
 
-      when(isValid && isReady && !isCancel && CXU_ENABLE){
-        if(p.CXU_WITH_STATUS)
+      when(isValid && isReady && !isCancel && CXU_ENABLE) {
         switch(rsp.status) {
-          for (i <- 1 to 6) is(i) {
+          for (i <- 1 to 7) is(i) {
             csr.status.flags(i-1) := True
           }
         }
@@ -197,7 +224,6 @@ class CxuPlugin(val layer : LaneLayer,
     lateLock.release()
   }
 }
-
 
 object CxuTest{
   def getCxuParameter() = CxuBusParameter(

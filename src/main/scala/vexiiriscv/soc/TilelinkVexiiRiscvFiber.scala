@@ -18,6 +18,7 @@ import spinal.lib.system.tag.{MemoryConnection, PMA, PmaRegion}
 import spinal.sim.{Signal, SimManagerContext}
 import vexiiriscv.{ParamSimple, VexiiRiscv}
 import vexiiriscv.execute.cfu.{CfuBus, CfuBusParameter, CfuPlugin, CfuPluginEncoding}
+import vexiiriscv.execute.cxu.{CxuBus, CxuBusParameter, CxuPlugin, CxuPluginEncoding}
 import vexiiriscv.execute.lsu.{LsuCachelessPlugin, LsuCachelessTileLinkPlugin, LsuL1Plugin, LsuL1TileLinkPlugin, LsuPlugin, LsuTileLinkPlugin}
 import vexiiriscv.fetch.{FetchCachelessPlugin, FetchCachelessTileLinkPlugin, FetchL1TileLinkPlugin, FetchL1Plugin}
 import vexiiriscv.memory.AddressTranslationService
@@ -50,6 +51,37 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
     val rsp_valid = in(node.rsp.valid)
     val rsp_ready = out(node.rsp.ready)
     val rsp_payload_outputs_0 = in(node.rsp.outputs(0))
+  }
+
+  val cxuBus = plugins.exists(_.isInstanceOf[CxuPlugin]) generate new Area {
+    val cxuPlugin = plugins.find(_.isInstanceOf[CxuPlugin]).get.asInstanceOf[CxuPlugin]
+    val cxuBusParam = cxuPlugin.busParameter
+
+    val totalCxuCount = cxuBusParam.CXU_L0_COUNT + cxuBusParam.CXU_L1_COUNT + cxuBusParam.CXU_L2_COUNT + cxuBusParam.CXU_L3_COUNT
+    val nodes = for (i <- 0 until totalCxuCount) yield CxuBus(cxuBusParam)
+
+    val cmd_valid = Vec(out(Bool()), totalCxuCount)
+    val cmd_ready = Vec(in(Bool()), totalCxuCount)
+    val cmd_payload_function_id = Vec(out(UInt(cxuBusParam.CXU_FUNCTION_ID_W bits)), totalCxuCount)
+    val cmd_payload_inputs_0 = Vec(out(Bits(cxuBusParam.CXU_INPUT_DATA_W bits)), totalCxuCount)
+    val cmd_payload_inputs_1 = Vec(out(Bits(cxuBusParam.CXU_INPUT_DATA_W bits)), totalCxuCount)
+
+    val rsp_valid = Vec(in(Bool()), totalCxuCount)
+    val rsp_ready = Vec(out(Bool()), totalCxuCount)
+    val rsp_payload_outputs_0 = Vec(in(Bits(cxuBusParam.CXU_OUTPUT_DATA_W bits)), totalCxuCount)
+
+    for (i <- 0 until totalCxuCount) {
+      val node = nodes(i)
+      cmd_valid(i) := node.cmd.valid
+      node.cmd.ready := cmd_ready(i)
+      cmd_payload_function_id(i) := node.cmd.function_id
+      cmd_payload_inputs_0(i) := node.cmd.inputs(0)
+      cmd_payload_inputs_1(i) := node.cmd.inputs(1)
+
+      node.rsp.valid := rsp_valid(i)
+      rsp_ready(i) := node.rsp.ready
+      rsp_payload_outputs_0(i) := node.rsp.outputs(0)
+    }
   }
 
   def buses = List(iBus, dBus) ++ lsuL1Bus.nullOption
@@ -156,6 +188,11 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
       }
       case p: vexiiriscv.execute.cfu.CfuPlugin => {
         cfuBus.node << p.logic.bus
+      }
+      case p: vexiiriscv.execute.cxu.CxuPlugin => {
+        for ((bus, i) <- p.logic.bus.buses.zipWithIndex) {
+          cxuBus.nodes(i) << bus.bus
+        }
       }
       case _ =>
     }

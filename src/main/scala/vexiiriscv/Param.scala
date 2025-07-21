@@ -12,6 +12,7 @@ import vexiiriscv._
 import vexiiriscv.decode.DecoderPlugin
 import vexiiriscv.execute._
 import vexiiriscv.execute.cfu.{CfuBusParameter, CfuPlugin, CfuPluginEncoding}
+import vexiiriscv.execute.cxu.{CxuBusParameter, CxuPlugin, CxuPluginEncoding}
 import vexiiriscv.execute.fpu.{FpuAddSharedParam, FpuMulParam}
 import vexiiriscv.execute.lsu._
 import vexiiriscv.fetch.{FetchCachelessAxi4Plugin, FetchCachelessPlugin, FetchCachelessWishbonePlugin, FetchL1Axi4Plugin, FetchL1Plugin, FetchL1WishbonePlugin, PrefetcherNextLinePlugin}
@@ -181,6 +182,10 @@ class ParamSimple() {
   var withCfu = false
   var gshareBytes = 4 KiB
   val prefetcherRptParam = new PrefetcherRptParam()
+  var cxuL0Num = 0
+  var cxuL1Num = 0
+  var cxuL2Num = 0
+  var cxuL3Num = 0
 
   var fetchTsp = MmuStorageParameter(
     levels = List(
@@ -713,6 +718,10 @@ class ParamSimple() {
     opt[Unit]("with-cfu") action { (v, c) => withCfu = true }
     opt[Int]("asid-width") action{ (v,c) => asidWidth = v }
     opt[Int]("gshare-bytes") action{ (v,c) => gshareBytes = v }
+    opt[Int]("cxu-l0-num") action { (v, c) => cxuL0Num = v }
+    opt[Int]("cxu-l1-num") action { (v, c) => cxuL1Num = v }
+    opt[Int]("cxu-l2-num") action { (v, c) => cxuL2Num = v }
+    opt[Int]("cxu-l3-num") action { (v, c) => cxuL3Num = v }
     opt[Unit]("dual-issue") action { (v, c) =>
       decoders = 2
       lanes = 2
@@ -946,7 +955,6 @@ class ParamSimple() {
         CFU_STATE_INDEX_NUM = 5
       )
     )
-
     plugins ++= ZbPlugin.make(
       early0,
       zba = withRvZba,
@@ -955,6 +963,45 @@ class ParamSimple() {
       zbs = withRvZbs,
       executeAt=0,
       formatAt=0
+    )
+    if(cxuL0Num != 0 || cxuL1Num != 0 || cxuL2Num != 0 || cxuL3Num != 0) plugins += new CxuPlugin(
+      layer = early0,
+      forkAt = 0,
+      joinAt = 2,
+      allowZeroLatency = true,
+      encodings = List(
+        CxuPluginEncoding (
+          instruction = M"-------------------------0001011",
+          functionId = List(14 downto 12),
+          input2Kind = CxuPlugin.Input2Kind.RS
+        ),
+        CxuPluginEncoding (
+          instruction = M"-------------------------0101011",
+          functionId = List(14 downto 12),
+          input2Kind = CxuPlugin.Input2Kind.IMM_I
+        )
+      ),
+      busParameter = CxuBusParameter(
+        CXU_VERSION = 0,
+        CXU_INTERFACE_ID_W = 0,
+        CXU_FUNCTION_ID_W = 3,
+        CXU_REORDER_ID_W = 0,
+        CXU_REQ_RESP_ID_W = 0,
+        CXU_INPUTS = 2,
+        CXU_INPUT_DATA_W = xlen,
+        CXU_OUTPUTS = 1,
+        CXU_OUTPUT_DATA_W = xlen,
+        CXU_FLOW_REQ_READY_ALWAYS = false,
+        CXU_FLOW_RESP_READY_ALWAYS = false,
+        CXU_WITH_STATUS = false,
+        CXU_RAW_INSN_W = 32,
+        CXU_CXU_ID_W = 4,
+        CXU_STATE_INDEX_NUM = 5,
+        CXU_L0_COUNT = cxuL0Num,
+        CXU_L1_COUNT = cxuL1Num,
+        CXU_L2_COUNT = cxuL2Num,
+        CXU_L3_COUNT = cxuL3Num
+      )
     )
 
     lsuBus match {

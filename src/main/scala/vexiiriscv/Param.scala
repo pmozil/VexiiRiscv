@@ -1000,7 +1000,8 @@ class ParamSimple() {
         CXU_L0_COUNT = cxuL0Num,
         CXU_L1_COUNT = cxuL1Num,
         CXU_L2_COUNT = cxuL2Num,
-        CXU_L3_COUNT = cxuL3Num
+        CXU_L3_COUNT = cxuL3Num,
+        CXU_FEATURE_LEVEL = 2,
       )
     )
 

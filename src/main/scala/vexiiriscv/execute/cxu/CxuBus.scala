@@ -33,7 +33,7 @@ case class CxuBusParameter(
   CXU_L1_COUNT: Int = 0,
   CXU_L2_COUNT: Int = 0,
   CXU_L3_COUNT: Int = 0,
-  CXU_FEATURE_LEVEL: Int = 0,
+  CXU_FEATURE_LEVEL: Int = 2,
   CXU_MAX_PENDING_REQUESTS: Int = 1
 )
 
@@ -102,18 +102,19 @@ case class CxuMux(p: CxuBusParameter) extends Bundle with IMasterSlave {
   }
 
   val totalCxuCount = p.CXU_L0_COUNT + p.CXU_L1_COUNT + p.CXU_L2_COUNT + p.CXU_L3_COUNT
-  val selected = Reg(UInt(log2Up(totalCxuCount) bits)) init(0)
+  val selected = Reg(UInt(p.CXU_CXU_ID_W bits)) init(0)
 
-  val buses = for (i <- 0 until totalCxuCount) yield new Area {
-    val level = if (i < p.CXU_L0_COUNT) 0
-                else if (i < p.CXU_L0_COUNT + p.CXU_L1_COUNT) 1
-                else if (i < p.CXU_L0_COUNT + p.CXU_L1_COUNT + p.CXU_L2_COUNT) 2
-                else 3
+  val buses = (0 until totalCxuCount).map { i =>
+    val level =
+      if (i < p.CXU_L0_COUNT) 0
+      else if (i < p.CXU_L0_COUNT + p.CXU_L1_COUNT) 1
+      else if (i < p.CXU_L0_COUNT + p.CXU_L1_COUNT + p.CXU_L2_COUNT) 2
+      else 3
+
     val customParam = p.copy(CXU_FEATURE_LEVEL = level)
-    val bus = CxuBus(customParam)
+    master(CxuBus(customParam))
   }
-
-  val flatBuses = buses.map(_.bus)
+  val exposedBuses = Vec(master(CxuBus(p)), totalCxuCount)
 
   if (p.CXU_FEATURE_LEVEL >= 2) {
     cmd.ready := False
@@ -121,7 +122,7 @@ case class CxuMux(p: CxuBusParameter) extends Bundle with IMasterSlave {
     rsp.payload.ready := False
   }
 
-  for ((bus, i) <- flatBuses.zipWithIndex) {
+  for ((bus, i) <- buses.zipWithIndex) {
     val isSelected = selected === U(i, selected.getWidth bits)
 
     bus.cmd.valid := cmd.valid && isSelected
@@ -140,5 +141,9 @@ case class CxuMux(p: CxuBusParameter) extends Bundle with IMasterSlave {
     when(isSelected) {
       if (p.CXU_FEATURE_LEVEL >= 2) rsp.payload.ready := bus.rsp.payload.ready
     }
+  }
+
+  for ((bus, i) <- buses.zipWithIndex) {
+    exposedBuses(i) << bus
   }
 }

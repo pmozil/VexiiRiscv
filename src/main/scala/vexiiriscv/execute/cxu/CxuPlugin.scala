@@ -47,7 +47,7 @@ class CxuPlugin(val layer: LaneLayer,
                 val encodings: List[CxuPluginEncoding] = null,
                 val stateAndIndexCsrOffset: Int = 0xBC0,
                 val statusCsrOffset: Int = 0x801,
-                val withEnable: Boolean = true,
+                val withEnable: Boolean = false,
                 val enableInit: Boolean = false) extends FiberPlugin {
   def p = busParameter
   import CxuPlugin._
@@ -124,6 +124,7 @@ class CxuPlugin(val layer: LaneLayer,
 
     val csr = new Area {
       cp.flushOnWrite(stateAndIndexCsrOffset)
+      if(withEnable) cp.readWrite(stateAndIndexCsrOffset, 31 -> en)
       cp.readWrite(stateAndIndexCsrOffset, 29 -> mcx_version)
       cp.readWrite(stateAndIndexCsrOffset, 28 -> mcx_cxe)
       cp.readWrite(stateAndIndexCsrOffset, 16 -> mcx_state_id)

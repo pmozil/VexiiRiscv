@@ -51,7 +51,7 @@ class CfuPlugin(val layer : LaneLayer,
                 val encodings : List[CfuPluginEncoding] = null,
                 val stateAndIndexCsrOffset : Int = 0xBC0,
                 val statusCsrOffset : Int = 0x801,
-                val withEnable : Boolean = true,
+                val withEnable : Boolean = false,
                 val enableInit : Boolean = false) extends FiberPlugin{
   def p = busParameter
   import CfuPlugin._

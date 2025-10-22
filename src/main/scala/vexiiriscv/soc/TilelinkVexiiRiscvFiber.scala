@@ -62,10 +62,6 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
 
     val buses = (0 until totalCxuCount).map { i =>
       val level = 2
-        // if (i < p.CXU_L0_COUNT) 0
-        // else if (i < p.CXU_L0_COUNT + p.CXU_L1_COUNT) 1
-        // else if (i < p.CXU_L0_COUNT + p.CXU_L1_COUNT + p.CXU_L2_COUNT) 2
-        // else 3
 
       val customParam = p.copy(CXU_FEATURE_LEVEL = level)
       val busNode = CxuBus(customParam)
@@ -80,7 +76,6 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
         val cmd_payload_function_id = out(node.cmd.function_id)
         val cmd_payload_reorder_id = out(node.cmd.reorder_id)
         val cmd_payload_request_id = out(node.cmd.request_id)
-        val cmd_payload_raw_insn = out(node.cmd.raw_insn)
         val cmd_payload_inputs_0 = if(p.CXU_INPUTS >= 1) Some(out(node.cmd.inputs(0))) else None
         val cmd_payload_inputs_1 = if(p.CXU_INPUTS >= 2) Some(out(node.cmd.inputs(1))) else None
         val cmd_payload_ready = if(p.CXU_FEATURE_LEVEL >= 2) Some(out(node.cmd.payload.ready)) else None

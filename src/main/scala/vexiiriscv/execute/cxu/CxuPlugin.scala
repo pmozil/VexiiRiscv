@@ -47,7 +47,6 @@ class CxuPlugin(val layer: LaneLayer,
                 val encodings: List[CxuPluginEncoding] = null,
                 val stateAndIndexCsrOffset: Int = 0xBC0,
                 val statusCsrOffset: Int = 0x801,
-                val withEnable: Boolean = false,
                 val enableInit: Boolean = false) extends FiberPlugin {
   def p = busParameter
   import CxuPlugin._
@@ -66,14 +65,9 @@ class CxuPlugin(val layer: LaneLayer,
 
     val cxuBus = master(CxuBus(p))
 
-    val mcx_version = Reg(UInt(3 bits)) init(1)
-    val mcx_cxe = Reg(Bool()) init(False)
     val mcx_state_id = Reg(UInt(log2Up(p.CXU_STATE_INDEX_NUM) bits)) init(0)
-    val mcx_selector = out(Reg(UInt(p.CXU_CXU_ID_W bits)))
+    val cxsel = out(Reg(UInt(p.CXU_INPUT_DATA_W bits)))
 
-    when(mcx_version =/= 1) {
-      mcx_selector := 0
-    }
 
     val CXU_ENABLE = Payload(Bool())
     val CXU_IN_FLIGHT = Payload(Bool())
@@ -83,9 +77,7 @@ class CxuPlugin(val layer: LaneLayer,
     val wb = wbp.createPort(at = joinAt)
 
     layer.lane.setDecodingDefault(CXU_ENABLE, False)
-    if(withEnable) ds.addMicroOpDecodingDefault(CXU_ENABLE, False)
-
-    val en = withEnable generate (Reg(Bool()) init(enableInit))
+    val en = (Reg(Bool()) init(enableInit))
 
     val mappings = for ((encoding, id) <- encodings.zipWithIndex) yield new Area {
       val ressources = ArrayBuffer[Resource]()
@@ -113,22 +105,14 @@ class CxuPlugin(val layer: LaneLayer,
       uop.dontFlushFrom(forkAt)
 
       wbp.addMicroOp(wb, uop)
-      if(withEnable) ds.addMicroOpDecoding(uopType, CXU_ENABLE, True)
     }
 
-    if(withEnable) ds.addDecodingLogic { ctx =>
-      ctx.legal clearWhen(ctx.node(CXU_ENABLE) && !en)
-    }
 
     earlyLock.release()
 
     val csr = new Area {
       cp.flushOnWrite(stateAndIndexCsrOffset)
-      if(withEnable) cp.readWrite(stateAndIndexCsrOffset, 31 -> en)
-      cp.readWrite(stateAndIndexCsrOffset, 29 -> mcx_version)
-      cp.readWrite(stateAndIndexCsrOffset, 28 -> mcx_cxe)
-      cp.readWrite(stateAndIndexCsrOffset, 16 -> mcx_state_id)
-      cp.readWrite(stateAndIndexCsrOffset, 0 -> mcx_selector)
+      cp.readWrite(stateAndIndexCsrOffset, 0 -> cxsel)
 
       val status = p.CXU_WITH_STATUS generate new Area {
         val IV = RegInit(False)
@@ -160,7 +144,7 @@ class CxuPlugin(val layer: LaneLayer,
       CXU_IN_FLIGHT := schedule || hold || fired
 
       cxuBus.cmd.valid := (schedule || hold) && !fired
-      cxuBus.cmd.cxu_id := mcx_selector
+      cxuBus.cmd.cxu_id := cxsel
       cxuBus.cmd.state_id := mcx_state_id
 
       val freezeIt = cxuBus.cmd.valid && !cxuBus.cmd.ready
@@ -178,7 +162,7 @@ class CxuPlugin(val layer: LaneLayer,
         Input2Kind.IMM_I -> IMM(Decode.UOP).h_sext.asBits
       )
 
-      val pendingRequests = p.CXU_FEATURE_LEVEL >= 2 generate new Area {
+      val pendingRequests = new Area {
         val count = Reg(UInt(log2Up(p.CXU_MAX_PENDING_REQUESTS + 1) bits)) init(0)
         val full = count === p.CXU_MAX_PENDING_REQUESTS
 

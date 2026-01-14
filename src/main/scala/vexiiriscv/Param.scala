@@ -182,10 +182,7 @@ class ParamSimple() {
   var withCfu = false
   var gshareBytes = 4 KiB
   val prefetcherRptParam = new PrefetcherRptParam()
-  var cxuL0Num = 0
-  var cxuL1Num = 0
-  var cxuL2Num = 0
-  var cxuL3Num = 0
+  var cxuNum = 0
 
   var fetchTsp = MmuStorageParameter(
     levels = List(
@@ -716,12 +713,9 @@ class ParamSimple() {
     opt[Unit]("with-rdtime") action { (v, c) => addISA("zicntr") }
     opt[Unit]("with-sstc") action { (v, c) => addISA("sstc") }
     opt[Unit]("with-cfu") action { (v, c) => withCfu = true }
+    opt[Int]("cxu-num") action { (v, c) => cxuNum = v }
     opt[Int]("asid-width") action{ (v,c) => asidWidth = v }
     opt[Int]("gshare-bytes") action{ (v,c) => gshareBytes = v }
-    opt[Int]("cxu-l0-num") action { (v, c) => cxuL0Num = v }
-    opt[Int]("cxu-l1-num") action { (v, c) => cxuL1Num = v }
-    opt[Int]("cxu-l2-num") action { (v, c) => cxuL2Num = v }
-    opt[Int]("cxu-l3-num") action { (v, c) => cxuL3Num = v }
     opt[Unit]("dual-issue") action { (v, c) =>
       decoders = 2
       lanes = 2
@@ -964,7 +958,7 @@ class ParamSimple() {
       executeAt=0,
       formatAt=0
     )
-    if(cxuL0Num != 0 || cxuL1Num != 0 || cxuL2Num != 0 || cxuL3Num != 0) plugins += new CxuPlugin(
+    if(cxuNum != 0) plugins += new CxuPlugin(
       layer = early0,
       forkAt = 0,
       joinAt = 2,
@@ -995,13 +989,9 @@ class ParamSimple() {
         CXU_FLOW_RESP_READY_ALWAYS = false,
         CXU_WITH_STATUS = false,
         CXU_RAW_INSN_W = 32,
-        CXU_CXU_ID_W = 4,
+        CXU_CXU_ID_W = xlen,
         CXU_STATE_INDEX_NUM = 5,
-        CXU_L0_COUNT = cxuL0Num,
-        CXU_L1_COUNT = cxuL1Num,
-        CXU_L2_COUNT = cxuL2Num,
-        CXU_L3_COUNT = cxuL3Num,
-        CXU_FEATURE_LEVEL = 2,
+        CXU_COUNT = cxuNum,
       )
     )
 

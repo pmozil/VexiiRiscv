@@ -58,12 +58,10 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
     val cxuPlugin = plugins.find(_.isInstanceOf[CxuPlugin]).get.asInstanceOf[CxuPlugin]
     val p = cxuPlugin.p
 
-    val totalCxuCount = p.CXU_L0_COUNT + p.CXU_L1_COUNT + p.CXU_L2_COUNT + p.CXU_L3_COUNT
+    val totalCxuCount = p.CXU_COUNT;
 
     val buses = (0 until totalCxuCount).map { i =>
-      val level = 2
-
-      val customParam = p.copy(CXU_FEATURE_LEVEL = level)
+      val customParam = p.copy()
       val busNode = CxuBus(customParam)
 
       new Area {
@@ -78,13 +76,13 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
         val cmd_payload_request_id = out(node.cmd.request_id)
         val cmd_payload_inputs_0 = if(p.CXU_INPUTS >= 1) Some(out(node.cmd.inputs(0))) else None
         val cmd_payload_inputs_1 = if(p.CXU_INPUTS >= 2) Some(out(node.cmd.inputs(1))) else None
-        val cmd_payload_ready = if(p.CXU_FEATURE_LEVEL >= 2) Some(out(node.cmd.payload.ready)) else None
+        val cmd_payload_ready = Some(out(node.cmd.payload.ready))
 
         val rsp_valid = in(node.rsp.valid)
         val rsp_ready = out(node.rsp.ready)
         val rsp_payload_outputs_0 = if(p.CXU_OUTPUTS >= 1) Some(in(node.rsp.outputs(0))) else None
         val rsp_payload_status = if(p.CXU_WITH_STATUS) Some(in(node.rsp.status)) else None
-        val rsp_payload_ready = if(p.CXU_FEATURE_LEVEL >= 2) Some(in(node.rsp.payload.ready)) else None
+        val rsp_payload_ready = Some(in(node.rsp.payload.ready))
       }
     }
 
@@ -209,9 +207,7 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
         if(p.p.CXU_WITH_STATUS) {
           p.logic.cxuBus.rsp.payload.status := 0
         }
-        if(p.p.CXU_FEATURE_LEVEL >= 2) {
-          p.logic.cxuBus.rsp.payload.ready := False
-        }
+        p.logic.cxuBus.rsp.payload.ready := False
 
         // Connect each bus
         for ((busArea, i) <- cxuBus.buses.zipWithIndex) {

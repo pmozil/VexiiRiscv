@@ -29,11 +29,7 @@ case class CxuBusParameter(
   CXU_FLOW_RESP_READY_ALWAYS: Boolean,
   CXU_WITH_STATUS: Boolean = false,
   CXU_RAW_INSN_W: Int = 0,
-  CXU_L0_COUNT: Int = 0,
-  CXU_L1_COUNT: Int = 0,
-  CXU_L2_COUNT: Int = 0,
-  CXU_L3_COUNT: Int = 0,
-  CXU_FEATURE_LEVEL: Int = 2,
+  CXU_COUNT: Int = 0,
   CXU_MAX_PENDING_REQUESTS: Int = 1
 )
 
@@ -45,7 +41,7 @@ case class CxuCmd(p: CxuBusParameter) extends Bundle {
   val state_id = UInt(log2Up(p.CXU_STATE_INDEX_NUM) bits)
   val cxu_id = UInt(p.CXU_CXU_ID_W bits)
   val raw_insn = Bits(p.CXU_RAW_INSN_W bits)
-  val ready = p.CXU_FEATURE_LEVEL >= 2 generate Bool()
+  val ready = Bool()
 
   def weakAssignFrom(m: CxuCmd): Unit = {
     def s = this
@@ -53,7 +49,7 @@ case class CxuCmd(p: CxuBusParameter) extends Bundle {
     WeakConnector(m, s, m.reorder_id, s.reorder_id, defaultValue = null, allowUpSize = false, allowDownSize = false, allowDrop = false)
     WeakConnector(m, s, m.request_id, s.request_id, defaultValue = null, allowUpSize = false, allowDownSize = false, allowDrop = false)
     s.inputs := m.inputs
-    if(p.CXU_FEATURE_LEVEL >= 2) s.ready := m.ready
+    s.ready := m.ready
   }
 }
 
@@ -61,14 +57,14 @@ case class CxuRsp(p: CxuBusParameter) extends Bundle {
   val response_id = UInt(p.CXU_REQ_RESP_ID_W bits)
   val outputs = Vec(Bits(p.CXU_OUTPUT_DATA_W bits), p.CXU_OUTPUTS)
   val status = p.CXU_WITH_STATUS generate Bits(32 bits)
-  val ready = p.CXU_FEATURE_LEVEL >= 2 generate Bool()
+  val ready = Bool()
 
   def weakAssignFrom(m: CxuRsp): Unit = {
     def s = this
     s.response_id := m.response_id
     s.outputs := m.outputs
     if(p.CXU_WITH_STATUS) s.status := m.status
-    if(p.CXU_FEATURE_LEVEL >= 2) s.ready := m.ready
+    s.ready := m.ready
   }
 }
 
@@ -101,26 +97,18 @@ case class CxuMux(p: CxuBusParameter) extends Bundle with IMasterSlave {
     slave(rsp)
   }
 
-  val totalCxuCount = p.CXU_L0_COUNT + p.CXU_L1_COUNT + p.CXU_L2_COUNT + p.CXU_L3_COUNT
+  val totalCxuCount = p.CXU_COUNT;
   val selected = Reg(UInt(p.CXU_CXU_ID_W bits)) init(0)
 
   val buses = (0 until totalCxuCount).map { i =>
-    val level =
-      if (i < p.CXU_L0_COUNT) 0
-      else if (i < p.CXU_L0_COUNT + p.CXU_L1_COUNT) 1
-      else if (i < p.CXU_L0_COUNT + p.CXU_L1_COUNT + p.CXU_L2_COUNT) 2
-      else 3
-
-    val customParam = p.copy(CXU_FEATURE_LEVEL = level)
+    val customParam = p.copy()
     master(CxuBus(customParam))
   }
   val exposedBuses = Vec(master(CxuBus(p)), totalCxuCount)
 
-  if (p.CXU_FEATURE_LEVEL >= 2) {
-    cmd.ready := False
-    cmd.payload.ready := False
-    rsp.payload.ready := False
-  }
+  cmd.ready := False
+  cmd.payload.ready := False
+  rsp.payload.ready := False
 
   for ((bus, i) <- buses.zipWithIndex) {
     val isSelected = selected === U(i, selected.getWidth bits)
@@ -129,7 +117,7 @@ case class CxuMux(p: CxuBusParameter) extends Bundle with IMasterSlave {
     bus.cmd.payload := cmd.payload
     when(isSelected) {
       cmd.ready := bus.cmd.ready
-      if (p.CXU_FEATURE_LEVEL >= 2) cmd.payload.ready := bus.cmd.payload.ready
+      cmd.payload.ready := bus.cmd.payload.ready
     }
 
     val matchedRsp = bus.rsp.valid && isSelected
@@ -139,7 +127,7 @@ case class CxuMux(p: CxuBusParameter) extends Bundle with IMasterSlave {
     }
     bus.rsp.ready := rsp.ready && isSelected
     when(isSelected) {
-      if (p.CXU_FEATURE_LEVEL >= 2) rsp.payload.ready := bus.rsp.payload.ready
+      rsp.payload.ready := bus.rsp.payload.ready
     }
   }
 

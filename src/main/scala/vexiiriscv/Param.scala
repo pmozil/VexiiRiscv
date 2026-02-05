@@ -991,6 +991,7 @@ class ParamSimple() {
         CXU_RAW_INSN_W = 32,
         CXU_CXU_ID_W = xlen,
         CXU_STATE_INDEX_NUM = 5,
+        CXU_STATE_W = 64,
         CXU_COUNT = cxuNum,
       )
     )

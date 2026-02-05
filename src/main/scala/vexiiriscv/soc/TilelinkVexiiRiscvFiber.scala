@@ -83,10 +83,20 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
         val rsp_payload_outputs_0 = if(p.CXU_OUTPUTS >= 1) Some(in(node.rsp.outputs(0))) else None
         val rsp_payload_status = if(p.CXU_WITH_STATUS) Some(in(node.rsp.status)) else None
         val rsp_payload_ready = Some(in(node.rsp.payload.ready))
+
+        val cxu_state_read = out(
+          Bits(p.CXU_STATE_W * p.CXU_INPUT_DATA_W bits)
+        )
+
+        val cxu_state_write = in(
+          Bits(p.CXU_STATE_W * p.CXU_INPUT_DATA_W bits)
+        )
+
+        val cxu_state_write_en = in(Bool())
       }
     }
 
-    val mcx_selector = UInt(p.CXU_CXU_ID_W bits)
+    val cxsel = UInt(p.CXU_CXU_ID_W bits)
   }
 
   def buses = List(iBus, dBus) ++ lsuL1Bus.nullOption
@@ -195,7 +205,7 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
         cfuBus.node << p.logic.bus
       }
       case p: vexiiriscv.execute.cxu.CxuPlugin => {
-        cxuBus.mcx_selector := p.logic.mcx_selector
+        cxuBus.cxsel := p.logic.cxsel
 
         // Initialize default values to prevent latches
         p.logic.cxuBus.cmd.ready := False
@@ -209,10 +219,20 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
         }
         p.logic.cxuBus.rsp.payload.ready := False
 
+        p.logic.cxStateWriteEn := False
+        p.logic.cxStateWriteData := p.logic.cxStateRead
+
         // Connect each bus
         for ((busArea, i) <- cxuBus.buses.zipWithIndex) {
-          val isSelected = cxuBus.mcx_selector === U(i, cxuBus.mcx_selector.getWidth bits)
+          val isSelected = cxuBus.cxsel === U(i, cxuBus.cxsel.getWidth bits)
           val bus = busArea.node
+
+          busArea.cxu_state_read := p.logic.cxStateRead
+
+          when(isSelected && busArea.cxu_state_write_en) {
+            p.logic.cxStateWriteEn := True
+            p.logic.cxStateWriteData := busArea.cxu_state_write
+          }
 
           // Command path
           bus.cmd.valid := p.logic.cxuBus.cmd.valid && isSelected

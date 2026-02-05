@@ -30,6 +30,7 @@ case class CxuBusParameter(
   CXU_WITH_STATUS: Boolean = false,
   CXU_RAW_INSN_W: Int = 0,
   CXU_COUNT: Int = 0,
+  CXU_STATE_W: Int = 64,
   CXU_MAX_PENDING_REQUESTS: Int = 1
 )
 
@@ -38,7 +39,7 @@ case class CxuCmd(p: CxuBusParameter) extends Bundle {
   val reorder_id = UInt(p.CXU_REORDER_ID_W bits)
   val request_id = UInt(p.CXU_REQ_RESP_ID_W bits)
   val inputs = Vec(Bits(p.CXU_INPUT_DATA_W bits), p.CXU_INPUTS)
-  val state_id = UInt(log2Up(p.CXU_STATE_INDEX_NUM) bits)
+  val state_id = UInt(log2Up(p.CXU_STATE_W) bits)
   val cxu_id = UInt(p.CXU_CXU_ID_W bits)
   val raw_insn = Bits(p.CXU_RAW_INSN_W bits)
   val ready = Bool()

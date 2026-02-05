@@ -46,6 +46,8 @@ class CxuPlugin(val layer: LaneLayer,
                 val busParameter: CxuBusParameter,
                 val encodings: List[CxuPluginEncoding] = null,
                 val stateAndIndexCsrOffset: Int = 0xBC0,
+                val stateCsrOffset: Int = 0xBF0,
+                val dataCsrOffset: Int = 0xC00,
                 val statusCsrOffset: Int = 0x801,
                 val enableInit: Boolean = false) extends FiberPlugin {
   def p = busParameter
@@ -65,9 +67,29 @@ class CxuPlugin(val layer: LaneLayer,
 
     val cxuBus = master(CxuBus(p))
 
-    val mcx_state_id = Reg(UInt(log2Up(p.CXU_STATE_INDEX_NUM) bits)) init(0)
+    val cxdataSetByIndex = Reg(Bool()) init(False)
+    val cxsidx = Reg(UInt(log2Up(p.CXU_STATE_W) bits)) init(0)
+    val cxdata = Reg(Bits(p.CXU_INPUT_DATA_W bits)) init(0)
     val cxsel = out(Reg(UInt(p.CXU_INPUT_DATA_W bits)))
 
+    val cxStateReg = Reg(
+      Bits(p.CXU_STATE_W * p.CXU_INPUT_DATA_W bits)
+    ) init(0)
+    val cxWords = cxStateReg.subdivideIn(p.CXU_INPUT_DATA_W bits)
+
+    val cxStateRead = out(
+      Bits(p.CXU_STATE_W * p.CXU_INPUT_DATA_W bits)
+    )
+    cxStateRead := cxStateReg
+
+    val cxStateWriteData = in(
+      Bits(p.CXU_STATE_W * p.CXU_INPUT_DATA_W bits)
+    )
+    val cxStateWriteEn = in(Bool())
+
+    when(cxStateWriteEn) {
+      cxStateReg := cxStateWriteData
+    }
 
     val CXU_ENABLE = Payload(Bool())
     val CXU_IN_FLIGHT = Payload(Bool())
@@ -114,6 +136,31 @@ class CxuPlugin(val layer: LaneLayer,
       cp.flushOnWrite(stateAndIndexCsrOffset)
       cp.readWrite(stateAndIndexCsrOffset, 0 -> cxsel)
 
+      // cp.flushOnWrite(stateAndIndexCsrOffset)
+      cp.readWrite(stateAndIndexCsrOffset, 0 -> cxsidx)
+      cp.onWrite(stateAndIndexCsrOffset, true) {
+        when (!cxdataSetByIndex && cxsidx < p.CXU_STATE_W - 1) {
+          cxdata := cxWords(cxsidx)
+          cxdataSetByIndex := True
+        }
+      }
+
+      // cp.flushOnWrite(dataCsrOffset)
+      cp.readWrite(dataCsrOffset, 0 -> cxdata)
+      cp.onRead(dataCsrOffset, true) {
+          when (cxsidx < p.CXU_STATE_W - 1) {
+            cxdataSetByIndex := False
+            cxsidx := cxsidx + 1
+          }
+      }
+      cp.onWrite(dataCsrOffset, true) {
+        when (!cxdataSetByIndex && cxsidx < p.CXU_STATE_W - 1) {
+          cxdata := cxWords(cxsidx)
+          cxsidx := cxsidx + 1
+          cxdataSetByIndex := False
+        }
+      }
+
       val status = p.CXU_WITH_STATUS generate new Area {
         val IV = RegInit(False)
         val IC = RegInit(False)
@@ -137,7 +184,8 @@ class CxuPlugin(val layer: LaneLayer,
     }
 
     val onFork = new layer.Execute(forkAt) {
-      val schedule = isValid && CXU_ENABLE
+      val validIndex = cxsel < p.CXU_COUNT
+      val schedule = isValid && validIndex && CXU_ENABLE
 
       val hold = False
       val fired = RegInit(False) setWhen(cxuBus.cmd.fire) clearWhen(!layer.lane.isFreezed())
@@ -145,7 +193,7 @@ class CxuPlugin(val layer: LaneLayer,
 
       cxuBus.cmd.valid := (schedule || hold) && !fired
       cxuBus.cmd.cxu_id := cxsel
-      cxuBus.cmd.state_id := mcx_state_id
+      cxuBus.cmd.state_id := cxsidx
 
       val freezeIt = cxuBus.cmd.valid && !cxuBus.cmd.ready
       layer.lane.freezeWhen(freezeIt)

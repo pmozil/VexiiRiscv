@@ -180,6 +180,8 @@ class ParamSimple() {
   var bootMemClear = false
   var mulKeepSrc = false
   var withCfu = false
+  var cxuNum = 0
+  var cfuCxuWithStatus = false
   var gshareBytes = 4 KiB
   val prefetcherRptParam = new PrefetcherRptParam()
   var cxuNum = 0
@@ -714,6 +716,7 @@ class ParamSimple() {
     opt[Unit]("with-sstc") action { (v, c) => addISA("sstc") }
     opt[Unit]("with-cfu") action { (v, c) => withCfu = true }
     opt[Int]("cxu-num") action { (v, c) => cxuNum = v }
+    opt[Int]("cfu-cxu-with-status") action { (v, c) => cfuCxuWithStatus = true }
     opt[Int]("asid-width") action{ (v,c) => asidWidth = v }
     opt[Int]("gshare-bytes") action{ (v,c) => gshareBytes = v }
     opt[Unit]("dual-issue") action { (v, c) =>
@@ -943,7 +946,7 @@ class ParamSimple() {
         CFU_OUTPUT_DATA_W = xlen,
         CFU_FLOW_REQ_READY_ALWAYS = false,
         CFU_FLOW_RESP_READY_ALWAYS = false,
-        CFU_WITH_STATUS = false,
+        CFU_WITH_STATUS = cfuCxuWithStatus,
         CFU_RAW_INSN_W = 32,
         CFU_CFU_ID_W = 4,
         CFU_STATE_INDEX_NUM = 5
@@ -987,7 +990,7 @@ class ParamSimple() {
         CXU_OUTPUT_DATA_W = xlen,
         CXU_FLOW_REQ_READY_ALWAYS = false,
         CXU_FLOW_RESP_READY_ALWAYS = false,
-        CXU_WITH_STATUS = false,
+        CXU_WITH_STATUS = cfuCxuWithStatus,
         CXU_RAW_INSN_W = 32,
         CXU_CXU_ID_W = xlen,
         CXU_STATE_INDEX_NUM = 5,

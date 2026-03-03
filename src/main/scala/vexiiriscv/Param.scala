@@ -626,7 +626,7 @@ class ParamSimple() {
     opt[Unit]("with-rvZcbm-llc") action { (v, c) => addISA("zicbom"); withRvcbmLlc = true }
     opt[Unit]("with-rvZknAes") action { (v, c) => addISA("zkne", "zknd") }
     opt[Unit]("with-sxaia") action { (v, c) => addISA("smaia", "ssaia") }
-    opt[Int]("imsic-interrupt-number") action { (v, c) => privParam.imsicInterrupts = v }
+    opt[Int]("imsic-interrupt-number") action { (v, c) => addISA("smcsrind", "sscsrind", "smaia", "ssaia"); privParam.imsicInterrupts = v }
     opt[Unit]("with-whiteboxer-outputs") action { (v, c) => withWhiteboxerOutputs = true }
     opt[Unit]("with-hart-id-input") action { (v, c) => withHartIdInput = true }
     opt[Unit]("with-hart-id-input-defaulted") action { (v, c) => privParam.withHartIdInputDefaulted = true }
@@ -952,15 +952,7 @@ class ParamSimple() {
         CFU_STATE_INDEX_NUM = 5
       )
     )
-    plugins ++= ZbPlugin.make(
-      early0,
-      zba = withRvZba,
-      zbb = withRvZbb,
-      zbc = withRvZbc,
-      zbs = withRvZbs,
-      executeAt=0,
-      formatAt=0
-    )
+
     if(cxuNum != 0) plugins += new CxuPlugin(
       layer = early0,
       forkAt = 0,
@@ -997,6 +989,16 @@ class ParamSimple() {
         CXU_STATE_W = 64,
         CXU_COUNT = cxuNum,
       )
+    )
+
+    plugins ++= ZbPlugin.make(
+      early0,
+      zba = withRvZba,
+      zbb = withRvZbb,
+      zbc = withRvZbc,
+      zbs = withRvZbs,
+      executeAt=0,
+      formatAt=0
     )
 
     lsuBus match {

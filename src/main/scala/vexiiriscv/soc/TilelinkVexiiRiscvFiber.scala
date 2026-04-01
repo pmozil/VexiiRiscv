@@ -84,15 +84,12 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
         val rsp_payload_status = if(p.CXU_WITH_STATUS) Some(in(node.rsp.status)) else None
         val rsp_payload_ready = Some(in(node.rsp.payload.ready))
 
-        val cxu_state_read = out(
-          Bits(p.CXU_STATE_W * p.CXU_INPUT_DATA_W bits)
-        )
+        val cxu_state_read_addr  = in(UInt(log2Up(p.CXU_STATE_W) bits))
+        val cxu_state_read_data  = out(Bits(p.CXU_INPUT_DATA_W bits))
 
-        val cxu_state_write = in(
-          Bits(p.CXU_STATE_W * p.CXU_INPUT_DATA_W bits)
-        )
-
-        val cxu_state_write_en = in(Bool())
+        val cxu_state_write_addr = in(UInt(log2Up(p.CXU_STATE_W) bits))
+        val cxu_state_write_data = in(Bits(p.CXU_INPUT_DATA_W bits))
+        val cxu_state_write_en   = in(Bool())
       }
     }
 
@@ -219,29 +216,36 @@ class TilelinkVexiiRiscvFiber(val plugins : ArrayBuffer[Hostable]) extends Area 
         }
         p.logic.cxuBus.rsp.payload.ready := False
 
+        p.logic.cxStateReadAddr := 0
+        p.logic.cxStateWriteData := 0
+        p.logic.cxStateWriteAddr := 0
         p.logic.cxStateWriteEn := False
-        p.logic.cxStateWriteData := p.logic.cxStateRead
 
         // Connect each bus
         for ((busArea, i) <- cxuBus.buses.zipWithIndex) {
           val isSelected = cxuBus.cxsel === U(i, cxuBus.cxsel.getWidth bits)
           val bus = busArea.node
 
-          busArea.cxu_state_read := p.logic.cxStateRead
+          busArea.cxu_state_read_data := 0
 
-          when(isSelected && busArea.cxu_state_write_en) {
-            p.logic.cxStateWriteEn := True
-            p.logic.cxStateWriteData := busArea.cxu_state_write
+          when (isSelected) {
+            p.logic.cxStateReadAddr := busArea.cxu_state_read_addr
+            busArea.cxu_state_read_data := p.logic.cxStateReadData
+
+            p.logic.cxStateWriteAddr := busArea.cxu_state_write_addr
+            p.logic.cxStateWriteData := busArea.cxu_state_write_data
           }
 
-          // Command path
+          when(isSelected && busArea.cxu_state_write_en) {
+            p.logic.cxStateWriteEn   := True
+          }
+
           bus.cmd.valid := p.logic.cxuBus.cmd.valid && isSelected
           bus.cmd.payload := p.logic.cxuBus.cmd.payload
           when(isSelected) {
             p.logic.cxuBus.cmd.ready := bus.cmd.ready
           }
 
-          // Response path
           when(bus.rsp.valid && isSelected) {
             p.logic.cxuBus.rsp.valid := True
             p.logic.cxuBus.rsp.payload := bus.rsp.payload

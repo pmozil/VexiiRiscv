@@ -180,7 +180,6 @@ class ParamSimple() {
   var bootMemClear = false
   var mulKeepSrc = false
   var withCfu = false
-  var cxuNum = 0
   var cfuCxuWithStatus = false
   var gshareBytes = 4 KiB
   val prefetcherRptParam = new PrefetcherRptParam()

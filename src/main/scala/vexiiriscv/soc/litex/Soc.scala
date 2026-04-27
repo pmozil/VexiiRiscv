@@ -178,9 +178,9 @@ class Soc(c : SocConfig) extends Component {
   val debugReset = c.withDebug generate in.Bool()
   val debug = c.withDebug generate ClockDomain(cpuCd.clock, debugReset)(new DebugModuleSocFiber(withJtagTap, withJtagInstruction) {
     out(dm.ndmreset)
-    dm.dmp.withSysBus = c.debugSysBus
+    // dm.dmp.withSysBus = c.debugSysBus
   })
-  val debugSysBus = c.debugSysBus generate cpuCd(debug.dm.makeSysbusTilelink())
+  // val debugSysBus = c.debugSysBus generate cpuCd(debug.dm.makeSysbusTilelink())
 
   val system = cpuCd on new AreaRoot {
     val mainDataWidth = vexiiParam.memDataWidth
@@ -442,7 +442,7 @@ class Soc(c : SocConfig) extends Component {
           mBus << List(vexii.iBus, vexii.lsuL1Bus)
           ioBus << List(vexii.dBus)
         }
-        if(c.debugSysBus) mBus << debugSysBus.filter.down
+        // if(c.debugSysBus) mBus << debugSysBus.filter.down
       }
 
       val wc = withCoherency generate new Area {
@@ -453,7 +453,7 @@ class Soc(c : SocConfig) extends Component {
           ioBus << List(vexii.dBus)
         }
 
-        if(c.debugSysBus) cBus << debugSysBus.filter.down
+        // if(c.debugSysBus) cBus << debugSysBus.filter.down
 
         for (video <- video) cBus << video.ctrl.dma
         if(dmaFilter != null) cBus << dmaFilter.down

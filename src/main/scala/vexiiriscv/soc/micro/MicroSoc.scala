@@ -21,7 +21,7 @@ import vexiiriscv.soc.TilelinkVexiiRiscvFiber
 class MicroSoc(p : MicroSocParam) extends Component {
   // socCtrl will provide clocking, reset controllers and debugModule (through jtag) to our SoC
   val socCtrl = new SocCtrl(p.socCtrl)
-  if(p.socCtrl.withDebug) socCtrl.debugModule.dm.dmp.withSysBus = p.withDebugSysBus
+  // if(p.socCtrl.withDebug) socCtrl.debugModule.dm.dmp.withSysBus = p.withDebugSysBus
 
   val system = new ClockingArea(socCtrl.system.cd) {
     // Let's define our main tilelink bus on which the CPU, RAM and peripheral "portal" will be plugged later.
@@ -33,8 +33,8 @@ class MicroSoc(p : MicroSocParam) extends Component {
     cpu.dBus.setDownConnection(a = StreamPipe.S2M) // Let's add a bit of pipelining on the cpu.dBus to increase FMax
 
     val sysbus = (p.socCtrl.withDebug && p.withDebugSysBus) generate{
-      val area = socCtrl.debugModule.dm.makeSysbusTilelink()
-      mainBus << area.filter.down
+      // val area = socCtrl.debugModule.dm.makeSysbusTilelink()
+      // mainBus << area.filter.down
     }
 
     val ram = new tilelink.fabric.RamFiber(p.ramBytes)
